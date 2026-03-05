@@ -23,9 +23,9 @@ TaskSchema.index({ date: 1, order: 1 });
 
 TaskSchema.set('toJSON', {
   versionKey: false,
-  transform: (_doc, ret) => {
-    ret.id = ret._id.toString();
-    delete ret._id;
+  transform: (_doc, ret: any) => {
+    const { _id, ...rest } = ret;
+    return { ...rest, id: _id?.toString() };
   },
 });
 
