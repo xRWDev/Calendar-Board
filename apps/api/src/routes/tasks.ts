@@ -1,4 +1,5 @@
 import express from 'express';
+import { Types } from 'mongoose';
 import { TaskModel } from '../models/task.js';
 import {
   isValidDate,
@@ -122,6 +123,7 @@ tasksRouter.post('/reorder', async (req, res) => {
     if (
       !update ||
       typeof update.id !== 'string' ||
+      !Types.ObjectId.isValid(update.id) ||
       !isValidDate(update.date) ||
       !isValidOrder(update.order)
     ) {
@@ -130,7 +132,7 @@ tasksRouter.post('/reorder', async (req, res) => {
 
     bulkOps.push({
       updateOne: {
-        filter: { _id: update.id },
+        filter: { _id: new Types.ObjectId(update.id) },
         update: { $set: { date: update.date, order: update.order } },
       },
     });
