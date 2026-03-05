@@ -5,10 +5,12 @@ import type { Country } from '@calendar/shared';
 
 const Wrapper = styled.div`
   position: relative;
+  min-width: 180px;
 `;
 
 const Button = styled.button`
   width: 100%;
+  min-width: 180px;
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 8px 12px;
@@ -20,6 +22,10 @@ const Button = styled.button`
   font-weight: 500;
   box-shadow: var(--shadow);
   cursor: pointer;
+
+  span {
+    white-space: nowrap;
+  }
 `;
 
 const caretPulse = keyframes`
@@ -55,6 +61,7 @@ const Panel = styled.div<{
   top: ${(props) => props.$top}px;
   left: ${(props) => props.$left}px;
   width: ${(props) => props.$width}px;
+  min-width: 180px;
   max-height: 280px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(226, 232, 240, 0.9);
@@ -80,17 +87,26 @@ const OptionList = styled.div`
   flex-direction: column;
   gap: 4px;
   max-height: 260px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 2px;
 
   &::-webkit-scrollbar {
     width: 8px;
+    height: 0;
   }
 
   &::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, 0.6);
     border-radius: 999px;
   }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
 `;
 
 const OptionItem = styled.button<{ $active: boolean }>`
@@ -100,6 +116,7 @@ const OptionItem = styled.button<{ $active: boolean }>`
   background: ${(props) => (props.$active ? 'rgba(255, 122, 69, 0.12)' : 'transparent')};
   color: ${(props) => (props.$active ? 'var(--ink)' : 'var(--muted)')};
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   font-size: 0.9rem;
   transition: background 180ms ease, color 180ms ease;
@@ -153,7 +170,7 @@ export function CountrySelect({ value, options, onChange }: CountrySelectProps) 
       if (!buttonRef.current || !panelRef.current) return;
       const rect = buttonRef.current.getBoundingClientRect();
       const panelHeight = panelRef.current.offsetHeight;
-      const width = rect.width;
+      const width = Math.max(rect.width, 180);
       let top = rect.bottom + 8;
       if (top + panelHeight > window.innerHeight - 12) {
         top = rect.top - panelHeight - 8;

@@ -14,6 +14,20 @@ export function isValidTitle(value: unknown): value is string {
   return trimmed.length >= 1 && trimmed.length <= 200;
 }
 
+export function isValidUsername(value: unknown): value is string {
+  if (!isNonEmptyString(value)) return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 3 || trimmed.length > 20) return false;
+  const re = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+  return re.test(trimmed);
+}
+
+export function isValidPassword(value: unknown): value is string {
+  if (!isNonEmptyString(value)) return false;
+  const trimmed = value.trim();
+  return trimmed.length >= 6 && trimmed.length <= 128;
+}
+
 export function isValidNotes(value: unknown): value is string | undefined {
   if (value === undefined) return true;
   if (value === null) return false;

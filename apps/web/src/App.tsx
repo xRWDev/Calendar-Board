@@ -15,7 +15,17 @@ import type { Country, Task, TaskReorderUpdate } from '@calendar/shared';
 import { buildMonthGrid, getMonthLabel, startOfMonth, toDateKey } from '@calendar/shared';
 import { CalendarGrid } from './components/CalendarGrid';
 import { CountrySelect } from './components/CountrySelect';
-import { createTask, deleteTask, fetchTasks, reorderTasks, updateTask } from './api';
+import {
+  createTask,
+  deleteTask,
+  fetchTasks,
+  getStoredToken,
+  loginUser,
+  registerUser,
+  reorderTasks,
+  setStoredToken,
+  updateTask,
+} from './api';
 import { normalizeTasks } from './utils/tasks';
 import { useHolidays } from './hooks/useHolidays';
 
@@ -91,15 +101,6 @@ const Controls = styled.div`
   }
 `;
 
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 8px;
-
-  @media (max-width: 768px) {
-    flex-wrap: wrap;
-  }
-`;
-
 const Button = styled.button<{ $primary?: boolean }>`
   border: none;
   border-radius: 12px;
@@ -113,6 +114,78 @@ const Button = styled.button<{ $primary?: boolean }>`
   @media (max-width: 768px) {
     padding: 6px 10px;
     font-size: 0.85rem;
+  }
+`;
+
+const AuthCard = styled.div`
+  align-self: center;
+  width: min(420px, 100%);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(227, 230, 240, 0.8);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.15);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const AuthTitle = styled.div`
+  font-weight: 700;
+  font-size: 1rem;
+`;
+
+const AuthRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const AuthInput = styled.input`
+  border: 1px solid rgba(210, 214, 226, 0.9);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  outline: none;
+  background: #fff;
+
+  &:focus {
+    border-color: rgba(248, 111, 63, 0.7);
+    box-shadow: 0 0 0 2px rgba(248, 111, 63, 0.15);
+  }
+`;
+
+const AuthActions = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const AuthButton = styled(Button)`
+  padding: 8px 14px;
+`;
+
+const AuthError = styled.div`
+  color: #b91c1c;
+  font-size: 0.9rem;
+`;
+
+const AuthLink = styled.button`
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: 768px) {
+    flex-wrap: wrap;
   }
 `;
 
@@ -274,6 +347,24 @@ export default function App() {
   const loadedMonthsRef = useRef<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [countries, setCountries] = useState<Country[]>([]);
+  const [authToken, setAuthToken] = useState(() => getStoredToken());
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('calendar-username');
+  });
+  const [currentUserColor, setCurrentUserColor] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('calendar-user-color');
+  });
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('calendar-user-role');
+  });
   const [countryCode, setCountryCode] = useState(() => {
     if (typeof window === 'undefined') return 'US';
     return window.localStorage.getItem('calendar-country') ?? 'US';
@@ -321,6 +412,75 @@ export default function App() {
     currentMonth.getFullYear(),
     countryCode
   );
+
+  const isAuthed = Boolean(authToken);
+
+  const resetTaskCache = useCallback(() => {
+    tasksCacheRef.current = {};
+    loadedMonthsRef.current = new Set();
+    setTasksByDate(() => {
+      const empty: Record<string, Task[]> = {};
+      dateKeys.forEach((key) => {
+        empty[key] = [];
+      });
+      return empty;
+    });
+  }, [dateKeys]);
+
+  const handleLogout = () => {
+    setStoredToken(null);
+    setAuthToken(null);
+    setCurrentUsername(null);
+    setCurrentUserColor(null);
+    setCurrentUserRole(null);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('calendar-username');
+      window.localStorage.removeItem('calendar-user-color');
+      window.localStorage.removeItem('calendar-user-role');
+    }
+    resetTaskCache();
+  };
+
+  const handleAuthSubmit = async () => {
+    if (authLoading) return;
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const response =
+        authMode === 'login'
+          ? await loginUser(authUsername, authPassword)
+          : await registerUser(authUsername, authPassword);
+      resetTaskCache();
+      setStoredToken(response.token);
+      setAuthToken(response.token);
+      setCurrentUsername(response.user?.username ?? null);
+      setCurrentUserColor(response.user?.color ?? null);
+      setCurrentUserRole(response.user?.role ?? null);
+      if (typeof window !== 'undefined') {
+        if (response.user?.username) {
+          window.localStorage.setItem('calendar-username', response.user.username);
+        } else {
+          window.localStorage.removeItem('calendar-username');
+        }
+        if (response.user?.color) {
+          window.localStorage.setItem('calendar-user-color', response.user.color);
+        } else {
+          window.localStorage.removeItem('calendar-user-color');
+        }
+        if (response.user?.role) {
+          window.localStorage.setItem('calendar-user-role', response.user.role);
+        } else {
+          window.localStorage.removeItem('calendar-user-role');
+        }
+      }
+      setAuthUsername('');
+      setAuthPassword('');
+    } catch (err: any) {
+      setAuthError(err?.message || 'Auth failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -418,6 +578,7 @@ export default function App() {
   };
 
   const prefetchMonth = useCallback((month: Date) => {
+    if (!isAuthed) return;
     const key = `${month.getFullYear()}-${month.getMonth()}`;
     if (tasksCacheRef.current[key]) return;
     const grid = buildMonthGrid(month, 1);
@@ -427,7 +588,7 @@ export default function App() {
         tasksCacheRef.current[key] = normalizeTasks(tasks, keys);
       })
       .catch(() => undefined);
-  }, []);
+  }, [isAuthed]);
 
   useEffect(() => {
     return () => {
@@ -459,6 +620,18 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    if (!isAuthed) {
+      setTasksByDate(() => {
+        const empty: Record<string, Task[]> = {};
+        dateKeys.forEach((key) => {
+          empty[key] = [];
+        });
+        return empty;
+      });
+      return () => {
+        active = false;
+      };
+    }
     fetchTasks(toDateKey(grid.start), toDateKey(grid.end))
       .then((tasks) => {
         if (!active) return;
@@ -479,7 +652,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [grid.start, grid.end, dateKeys, monthKey]);
+  }, [grid.start, grid.end, dateKeys, monthKey, isAuthed]);
 
   useEffect(() => {
     let active = true;
@@ -633,12 +806,12 @@ export default function App() {
     if (!activeContainer || !overContainer) return;
 
     if (activeContainer === overContainer) {
-    updateTasksByDate((prev) => {
-      const current = prev[activeContainer] ?? [];
-      const nextForDate = reorderVisibleTasks(current, activeId, overId, overContainer);
-      if (nextForDate === current) return prev;
-      return { ...prev, [activeContainer]: nextForDate };
-    });
+      updateTasksByDate((prev) => {
+        const current = prev[activeContainer] ?? [];
+        const nextForDate = reorderVisibleTasks(current, activeId, overId, overContainer);
+        if (nextForDate === current) return prev;
+        return { ...prev, [activeContainer]: nextForDate };
+      });
       const width = getCellWidth(overContainer);
       if (width) setDragPreviewWidth(width);
       return;
@@ -663,6 +836,7 @@ export default function App() {
 
   const persistReorder = async (updates: TaskReorderUpdate[]) => {
     if (updates.length === 0) return;
+    if (!isAuthed) return;
     try {
       await reorderTasks(updates);
     } catch (err) {
@@ -733,6 +907,7 @@ export default function App() {
   };
 
   const handleCreate = async (dateKey: string, title: string) => {
+    if (!isAuthed) return;
     const tempId = `temp-${Date.now()}`;
     const previous = tasksByDate;
     setTasksByDate((prev) => {
@@ -745,6 +920,8 @@ export default function App() {
         notes: undefined,
         date: dateKey,
         order: tasks.length,
+        color: currentUserColor ?? '#94a3b8',
+        isAdmin: currentUserRole === 'admin',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -768,6 +945,7 @@ export default function App() {
   };
 
   const handleUpdate = async (id: string, updates: { title?: string; notes?: string }) => {
+    if (!isAuthed) return;
     const existing = findTask(id);
     const previous = tasksByDate;
     setTasksByDate((prev) => {
@@ -796,6 +974,7 @@ export default function App() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!isAuthed) return;
     const previous = tasksByDate;
     setTasksByDate((prev) => {
       const next = { ...prev };
@@ -815,6 +994,60 @@ export default function App() {
 
   const activeTask = findTask(activeTaskId);
 
+  if (!isAuthed) {
+    return (
+      <Page>
+        <Header>
+          <HeaderTop>
+            <Brand>
+              Calendar Board <BrandBadge>Mini Trello</BrandBadge>
+            </Brand>
+          </HeaderTop>
+        </Header>
+        <AuthCard>
+          <AuthTitle>
+            {authMode === 'login' ? 'Sign in to continue' : 'Create your account'}
+          </AuthTitle>
+          <AuthRow>
+            <AuthInput
+              placeholder="Nickname"
+              value={authUsername}
+              onChange={(event) => setAuthUsername(event.target.value)}
+              type="text"
+              autoComplete="username"
+            />
+            <AuthInput
+              placeholder="Password"
+              value={authPassword}
+              onChange={(event) => setAuthPassword(event.target.value)}
+              type="password"
+              autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+            />
+          </AuthRow>
+          {authError ? <AuthError>{authError}</AuthError> : null}
+          <AuthActions>
+            <AuthButton
+              type="button"
+              $primary
+              onClick={handleAuthSubmit}
+              disabled={authLoading}
+            >
+              {authMode === 'login' ? 'Sign In' : 'Sign Up'}
+            </AuthButton>
+            <AuthLink
+              type="button"
+              onClick={() =>
+                setAuthMode((prev) => (prev === 'login' ? 'register' : 'login'))
+              }
+            >
+              {authMode === 'login' ? 'Need an account?' : 'Have an account?'}
+            </AuthLink>
+          </AuthActions>
+        </AuthCard>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       <Header>
@@ -833,6 +1066,9 @@ export default function App() {
               options={countries}
               onChange={(next) => setCountryCode(next)}
             />
+            <Button type="button" onClick={handleLogout}>
+              Logout
+            </Button>
           </Controls>
         </HeaderTop>
         <FooterRow>

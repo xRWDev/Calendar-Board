@@ -1,5 +1,7 @@
 import cors from 'cors';
 import express from 'express';
+import { requireAuth } from './middleware/auth.js';
+import { authRouter } from './routes/auth.js';
 import { tasksRouter } from './routes/tasks.js';
 
 const normalizeOrigin = (value: string) => value.replace(/\/$/, '');
@@ -37,7 +39,8 @@ export function createApp() {
     res.json({ status: 'ok' });
   });
 
-  app.use('/api/tasks', tasksRouter);
+  app.use('/api/auth', authRouter);
+  app.use('/api/tasks', requireAuth, tasksRouter);
 
   return app;
 }

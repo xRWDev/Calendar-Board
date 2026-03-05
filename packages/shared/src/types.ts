@@ -7,6 +7,8 @@ export interface Task {
   notes?: string;
   date: DateKey;
   order: number;
+  color?: string;
+  isAdmin?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -37,12 +37,31 @@ const taskOut = keyframes`
   }
 `;
 
+
+const toRgba = (color: string, alpha: number) => {
+  const value = color.replace('#', '').trim();
+  if (value.length === 3) {
+    const r = Number.parseInt(value[0] + value[0], 16);
+    const g = Number.parseInt(value[1] + value[1], 16);
+    const b = Number.parseInt(value[2] + value[2], 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  if (value.length === 6) {
+    const r = Number.parseInt(value.slice(0, 2), 16);
+    const g = Number.parseInt(value.slice(2, 4), 16);
+    const b = Number.parseInt(value.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(148, 163, 184, ${alpha})`;
+};
+
 const Row = styled.div<{
   $dragging: boolean;
   $disabled: boolean;
   $animate: boolean;
   $removing: boolean;
   $variant: 'default' | 'popover';
+  $accent: string;
 }>`
   position: relative;
   display: grid;
@@ -57,14 +76,17 @@ const Row = styled.div<{
       : props.$variant === 'popover'
         ? '#ffffff'
         : 'var(--surface)'};
-  box-shadow: ${(props) =>
-    props.$dragging
-      ? '0 8px 20px rgba(255, 122, 69, 0.2)'
-      : props.$variant === 'popover'
-        ? '0 6px 16px rgba(15, 23, 42, 0.08)'
-        : 'none'};
-  border: 1px solid
-    ${(props) => (props.$variant === 'popover' ? 'rgba(226, 232, 240, 0.9)' : 'var(--border)')};
+  box-shadow: ${(props) => {
+    const tint = toRgba(props.$accent, props.$dragging ? 0.22 : 0.12);
+    if (props.$dragging) {
+      return `0 8px 20px rgba(255, 122, 69, 0.2), 0 6px 14px ${tint}`;
+    }
+    if (props.$variant === 'popover') {
+      return `0 6px 16px rgba(15, 23, 42, 0.08), 0 4px 12px ${tint}`;
+    }
+    return `0 4px 10px ${tint}`;
+  }};
+  border: 0.8px solid ${(props) => props.$accent};
   transition: box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   opacity: ${(props) => (props.$disabled ? 0.7 : 1)};
   &:hover {
@@ -89,18 +111,20 @@ const Row = styled.div<{
   }
 `;
 
-const Handle = styled.button<{ $disabled: boolean; $variant: 'default' | 'popover' }>`
+const Handle = styled.button<{ $disabled: boolean; $variant: 'default' | 'popover'; $accent: string; $isAdmin: boolean }>`
   width: 18px;
   height: 18px;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 0.8px solid ${(props) => props.$accent};
   background: ${(props) =>
-    props.$disabled ? '#f3f4f6' : props.$variant === 'popover' ? '#eef2ff' : '#eef2ff'};
-  display: grid;
-  place-items: center;
+    props.$disabled ? '#f3f4f6' : props.$variant === 'popover' ? '#ffffff' : '#ffffff'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: ${(props) => (props.$disabled ? 'not-allowed' : 'grab')};
   padding: 0;
   margin-top: 2px;
+  line-height: 0;
 
   @media (max-width: 768px) {
     width: 16px;
@@ -112,8 +136,24 @@ const Handle = styled.button<{ $disabled: boolean; $variant: 'default' | 'popove
     width: 8px;
     height: 8px;
     border-radius: 2px;
-    background: ${(props) => (props.$disabled ? '#cbd5f5' : '#6366f1')};
+    background: ${(props) => (props.$disabled ? '#cbd5f5' : props.$accent)};
+    opacity: ${(props) => (props.$isAdmin ? 0 : 1)};
+    display: ${(props) => (props.$isAdmin ? 'none' : 'block')};
   }
+`;
+
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const CrownIcon = styled.svg<{ $accent: string }>`
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  display: block;
+  fill: ${(props) => props.$accent};
 `;
 
 const Title = styled.div`
@@ -154,19 +194,21 @@ const EditPopover = styled.div<{
   $left: number;
   $width: number;
   $open: boolean;
+  $accent: string;
 }>`
   position: fixed;
   top: ${(props) => props.$top}px;
   left: ${(props) => props.$left}px;
   width: ${(props) => props.$width}px;
   background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 0.8px solid ${(props) => props.$accent};
   border-radius: 16px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14),
+    0 6px 16px ${(props) => toRgba(props.$accent, 0.14)};
   backdrop-filter: blur(14px);
   z-index: 80;
   opacity: ${(props) => (props.$open ? 1 : 0)};
@@ -180,12 +222,12 @@ const EditPopover = styled.div<{
   will-change: transform, opacity, filter;
 `;
 
-const EditTitleArea = styled.textarea`
+const EditTitleArea = styled.textarea<{ $accent: string }>`
   width: 100%;
   min-height: 56px;
   max-height: 160px;
   resize: none;
-  border: 1px solid rgba(148, 163, 184, 0.6);
+  border: 0.8px solid ${(props) => props.$accent};
   border-radius: 10px;
   padding: 8px 10px;
   font-size: 0.9rem;
@@ -194,12 +236,12 @@ const EditTitleArea = styled.textarea`
   background: #fff;
 `;
 
-const EditNotesArea = styled.textarea`
+const EditNotesArea = styled.textarea<{ $accent: string }>`
   width: 100%;
   min-height: 34px;
   max-height: 120px;
   resize: none;
-  border: 1px dashed rgba(148, 163, 184, 0.5);
+  border: 0.8px dashed ${(props) => props.$accent};
   border-radius: 10px;
   padding: 6px 10px;
   font-size: 0.78rem;
@@ -226,13 +268,14 @@ const Tooltip = styled.div<{
   $width: number;
   $placement: 'top' | 'bottom';
   $visible: boolean;
+  $accent: string;
 }>`
   position: fixed;
   top: ${(props) => props.$top}px;
   left: ${(props) => props.$left}px;
   width: ${(props) => props.$width}px;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 1px solid ${(props) => props.$accent};
   border-radius: 14px;
   padding: 10px 12px;
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
@@ -294,7 +337,13 @@ interface TaskItemProps {
   variant?: 'default' | 'popover';
 }
 
-export function TaskItem({ task, query, onUpdate, onDelete, variant = 'default' }: TaskItemProps) {
+export function TaskItem({
+  task,
+  query,
+  onUpdate,
+  onDelete,
+  variant = 'default',
+}: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? '');
@@ -321,6 +370,7 @@ export function TaskItem({ task, query, onUpdate, onDelete, variant = 'default' 
     null
   );
   const editCloseTimerRef = useRef<number | null>(null);
+  const accent = task.color ?? '#94a3b8';
   const [animate] = useState(() => {
     const createdAt = Date.parse(task.createdAt);
     if (Number.isNaN(createdAt)) return false;
@@ -559,6 +609,7 @@ export function TaskItem({ task, query, onUpdate, onDelete, variant = 'default' 
       $animate={animate}
       $removing={isRemoving}
       $variant={variant}
+      $accent={accent}
       data-task-id={task.id}
     >
       <Handle
@@ -566,9 +617,18 @@ export function TaskItem({ task, query, onUpdate, onDelete, variant = 'default' 
         aria-label="Drag task"
         $disabled={disabled}
         $variant={variant}
+        $accent={accent}
+        $isAdmin={Boolean(task.isAdmin)}
         {...attributes}
         {...listeners}
-      />
+      >
+        {task.isAdmin ? (
+          <CrownIcon viewBox="0 2 24 20" aria-hidden $accent={accent}>
+            <path d="M4 7l4.2 4.6L12 5l3.8 6.6L20 7v8H4V7z" />
+            <rect x="4" y="16" width="16" height="3" rx="1.5" />
+          </CrownIcon>
+        ) : null}
+      </Handle>
       <div>
         <Content
           onClick={() => {
@@ -578,7 +638,9 @@ export function TaskItem({ task, query, onUpdate, onDelete, variant = 'default' 
           onMouseEnter={handleTooltipEnter}
           onMouseLeave={handleTooltipLeave}
         >
-          <Title>{highlightText(task.title, query)}</Title>
+          <TitleRow>
+            <Title>{highlightText(task.title, query)}</Title>
+          </TitleRow>
           {task.notes ? <Notes>{task.notes}</Notes> : null}
         </Content>
       </div>
@@ -592,44 +654,48 @@ export function TaskItem({ task, query, onUpdate, onDelete, variant = 'default' 
       </DeleteButton>
       {renderTooltip && tooltipPos
         ? createPortal(
-            <Tooltip
-              ref={tooltipRef}
-              $top={tooltipPos.top}
-              $left={tooltipPos.left}
-              $width={tooltipPos.width}
-              $placement={tooltipPos.placement}
-              $visible={tooltipVisible}
-            >
-              <TooltipTitle>{task.title}</TooltipTitle>
-              {task.notes ? <TooltipBody>{task.notes}</TooltipBody> : null}
-            </Tooltip>,
-            document.body
-          )
+          <Tooltip
+            ref={tooltipRef}
+            $top={tooltipPos.top}
+            $left={tooltipPos.left}
+            $width={tooltipPos.width}
+            $placement={tooltipPos.placement}
+            $visible={tooltipVisible}
+            $accent={accent}
+          >
+            <TooltipTitle>{task.title}</TooltipTitle>
+            {task.notes ? <TooltipBody>{task.notes}</TooltipBody> : null}
+          </Tooltip>,
+          document.body
+        )
         : null}
       {renderEditor
         ? createPortal(
-            <EditPopover
-              ref={editRef}
-              $top={editPos?.top ?? 0}
-              $left={editPos?.left ?? 0}
-              $width={editPos?.width ?? 320}
-              $open={editorOpen && Boolean(editPos)}
-            >
-              <EditTitleArea
-                ref={titleRef}
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  autoResize(event.target);
-                }}
-                onKeyDown={handleKeyDown}
-              />
-              <EditNotesArea
-                ref={notesRef}
-                placeholder="Notes (optional)"
-                value={notes}
-                onChange={(event) => {
-                  setNotes(event.target.value);
+          <EditPopover
+            ref={editRef}
+            $top={editPos?.top ?? 0}
+            $left={editPos?.left ?? 0}
+            $width={editPos?.width ?? 320}
+            $open={editorOpen && Boolean(editPos)}
+            $accent={accent}
+          >
+            <EditTitleArea
+              ref={titleRef}
+              $accent={accent}
+              value={title}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                autoResize(event.target);
+              }}
+              onKeyDown={handleKeyDown}
+            />
+            <EditNotesArea
+              ref={notesRef}
+              $accent={accent}
+              placeholder="Notes (optional)"
+              value={notes}
+              onChange={(event) => {
+                setNotes(event.target.value);
                   autoResize(event.target);
                 }}
                 onKeyDown={handleKeyDown}
