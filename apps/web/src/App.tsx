@@ -269,9 +269,13 @@ export default function App() {
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(today));
   const [monthDirection, setMonthDirection] = useState<'prev' | 'next' | 'none'>('none');
   const [tasksByDate, setTasksByDate] = useState<Record<string, Task[]>>({});
+  const tasksByDateRef = useRef<Record<string, Task[]>>({});
   const [search, setSearch] = useState('');
   const [countries, setCountries] = useState<Country[]>([]);
-  const [countryCode, setCountryCode] = useState('US');
+  const [countryCode, setCountryCode] = useState(() => {
+    if (typeof window === 'undefined') return 'US';
+    return window.localStorage.getItem('calendar-country') ?? 'US';
+  });
   const [error, setError] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeContainerId, setActiveContainerId] = useState<string | null>(null);
@@ -280,6 +284,23 @@ export default function App() {
   const [focusDateKey, setFocusDateKey] = useState<string | null>(null);
   const pendingScrollRef = useRef<string | null>(null);
   const focusTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    tasksByDateRef.current = tasksByDate;
+  }, [tasksByDate]);
+
+  const updateTasksByDate = useCallback(
+    (
+      updater: (prev: Record<string, Task[]>) => Record<string, Task[]>
+    ) => {
+      setTasksByDate((prev) => {
+        const next = updater(prev);
+        tasksByDateRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
 
   const grid = useMemo(() => buildMonthGrid(currentMonth, 1), [currentMonth]);
   const dateKeys = useMemo(() => grid.days.map((day) => toDateKey(day)), [grid.days]);
@@ -292,6 +313,11 @@ export default function App() {
     currentMonth.getFullYear(),
     countryCode
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('calendar-country', countryCode);
+  }, [countryCode]);
 
   const normalizedQuery = search.trim().toLowerCase();
   const isFiltering = normalizedQuery.length > 0;
@@ -548,18 +574,18 @@ export default function App() {
     if (!activeContainer || !overContainer) return;
 
     if (activeContainer === overContainer) {
-      setTasksByDate((prev) => {
-        const current = prev[activeContainer] ?? [];
-        const nextForDate = reorderVisibleTasks(current, activeId, overId, overContainer);
-        if (nextForDate === current) return prev;
-        return { ...prev, [activeContainer]: nextForDate };
-      });
+    updateTasksByDate((prev) => {
+      const current = prev[activeContainer] ?? [];
+      const nextForDate = reorderVisibleTasks(current, activeId, overId, overContainer);
+      if (nextForDate === current) return prev;
+      return { ...prev, [activeContainer]: nextForDate };
+    });
       const width = getCellWidth(overContainer);
       if (width) setDragPreviewWidth(width);
       return;
     }
 
-    setTasksByDate((prev) => {
+    updateTasksByDate((prev) => {
       const fromTasks = prev[activeContainer] ?? [];
       const toTasks = prev[overContainer] ?? [];
       const { nextFrom, nextTo } = moveTaskAcrossDates(
@@ -613,23 +639,23 @@ export default function App() {
     const affected = new Set([activeContainer, overContainer]);
     const updates: TaskReorderUpdate[] = [];
     const movedAcrossDates = activeContainer !== overContainer;
+    const current = tasksByDateRef.current;
+    const next = { ...current };
 
-    setTasksByDate((prev) => {
-      const next = { ...prev };
-      affected.forEach((date) => {
-        const tasks = next[date] ?? [];
-        next[date] = tasks.map((task, index) => {
-          const isActiveMoved = movedAcrossDates && task.id === activeId;
-          if (task.order !== index || task.date !== date || isActiveMoved) {
-            updates.push({ id: task.id, date, order: index });
-            return { ...task, date, order: index };
-          }
-          return task;
-        });
+    affected.forEach((date) => {
+      const tasks = next[date] ?? [];
+      next[date] = tasks.map((task, index) => {
+        const isActiveMoved = movedAcrossDates && task.id === activeId;
+        if (task.order !== index || task.date !== date || isActiveMoved) {
+          updates.push({ id: task.id, date, order: index });
+          return { ...task, date, order: index };
+        }
+        return task;
       });
-      return next;
     });
 
+    tasksByDateRef.current = next;
+    setTasksByDate(next);
     persistReorder(updates);
     dragSnapshotRef.current = null;
   };

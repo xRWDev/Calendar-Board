@@ -318,7 +318,11 @@ export const DayCell = React.memo(function DayCell({
     return (
       <HolidayList>
         {visible.map((holiday) => (
-          <HolidayTag key={`${holiday.date}-${holiday.name}`}>{holiday.name}</HolidayTag>
+          <HolidayTag
+            key={`${holiday.date}-${holiday.name}-${holiday.localName}-${holiday.counties?.join('|') ?? 'all'}`}
+          >
+            {holiday.name}
+          </HolidayTag>
         ))}
         {extra > 0 ? (
           <HolidayTag title={extraNames}>+{extra} more</HolidayTag>
