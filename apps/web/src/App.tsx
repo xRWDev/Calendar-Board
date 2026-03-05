@@ -270,6 +270,8 @@ export default function App() {
   const [monthDirection, setMonthDirection] = useState<'prev' | 'next' | 'none'>('none');
   const [tasksByDate, setTasksByDate] = useState<Record<string, Task[]>>({});
   const tasksByDateRef = useRef<Record<string, Task[]>>({});
+  const tasksCacheRef = useRef<Record<string, Record<string, Task[]>>>({});
+  const loadedMonthsRef = useRef<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [countries, setCountries] = useState<Country[]>([]);
   const [countryCode, setCountryCode] = useState(() => {
@@ -285,28 +287,34 @@ export default function App() {
   const pendingScrollRef = useRef<string | null>(null);
   const focusTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    tasksByDateRef.current = tasksByDate;
-  }, [tasksByDate]);
-
-  const updateTasksByDate = useCallback(
-    (
-      updater: (prev: Record<string, Task[]>) => Record<string, Task[]>
-    ) => {
-      setTasksByDate((prev) => {
-        const next = updater(prev);
-        tasksByDateRef.current = next;
-        return next;
-      });
-    },
-    []
-  );
-
   const grid = useMemo(() => buildMonthGrid(currentMonth, 1), [currentMonth]);
   const dateKeys = useMemo(() => grid.days.map((day) => toDateKey(day)), [grid.days]);
   const monthKey = useMemo(
     () => `${currentMonth.getFullYear()}-${currentMonth.getMonth()}`,
     [currentMonth]
+  );
+
+  useEffect(() => {
+    tasksByDateRef.current = tasksByDate;
+  }, [tasksByDate]);
+
+  useEffect(() => {
+    if (!loadedMonthsRef.current.has(monthKey)) return;
+    tasksCacheRef.current[monthKey] = tasksByDate;
+  }, [tasksByDate, monthKey]);
+
+  const updateTasksByDate = useCallback(
+    (updater: (prev: Record<string, Task[]>) => Record<string, Task[]>) => {
+      setTasksByDate((prev) => {
+        const next = updater(prev);
+        tasksByDateRef.current = next;
+        if (loadedMonthsRef.current.has(monthKey)) {
+          tasksCacheRef.current[monthKey] = next;
+        }
+        return next;
+      });
+    },
+    [monthKey]
   );
 
   const { holidayMap, error: holidayError } = useHolidays(
@@ -379,9 +387,47 @@ export default function App() {
   };
 
   const changeMonth = (nextMonth: Date, direction: 'prev' | 'next' | 'none') => {
+    const target = startOfMonth(nextMonth);
+    const key = `${target.getFullYear()}-${target.getMonth()}`;
+    const cached = tasksCacheRef.current[key];
+    if (cached) {
+      setTasksByDate(cached);
+    }
     setMonthDirection(direction);
-    setCurrentMonth(startOfMonth(nextMonth));
+    setCurrentMonth(target);
   };
+
+  const goToToday = () => {
+    const target = startOfMonth(today);
+    let direction: 'prev' | 'next' | 'none' = 'none';
+    if (
+      target.getFullYear() > currentMonth.getFullYear() ||
+      (target.getFullYear() === currentMonth.getFullYear() &&
+        target.getMonth() > currentMonth.getMonth())
+    ) {
+      direction = 'next';
+    } else if (
+      target.getFullYear() < currentMonth.getFullYear() ||
+      (target.getFullYear() === currentMonth.getFullYear() &&
+        target.getMonth() < currentMonth.getMonth())
+    ) {
+      direction = 'prev';
+    }
+    changeMonth(target, direction);
+    focusDate(todayKey);
+  };
+
+  const prefetchMonth = useCallback((month: Date) => {
+    const key = `${month.getFullYear()}-${month.getMonth()}`;
+    if (tasksCacheRef.current[key]) return;
+    const grid = buildMonthGrid(month, 1);
+    const keys = grid.days.map((day) => toDateKey(day));
+    fetchTasks(toDateKey(grid.start), toDateKey(grid.end))
+      .then((tasks) => {
+        tasksCacheRef.current[key] = normalizeTasks(tasks, keys);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -392,6 +438,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    prefetchMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    prefetchMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  }, [currentMonth, prefetchMonth]);
+
+  useEffect(() => {
+    const cached = tasksCacheRef.current[monthKey];
+    if (cached) {
+      setTasksByDate(cached);
+      return;
+    }
     setTasksByDate(() => {
       const empty: Record<string, Task[]> = {};
       dateKeys.forEach((key) => {
@@ -399,14 +455,17 @@ export default function App() {
       });
       return empty;
     });
-  }, [dateKeys]);
+  }, [dateKeys, monthKey]);
 
   useEffect(() => {
     let active = true;
     fetchTasks(toDateKey(grid.start), toDateKey(grid.end))
       .then((tasks) => {
         if (!active) return;
-        setTasksByDate(normalizeTasks(tasks, dateKeys));
+        const normalized = normalizeTasks(tasks, dateKeys);
+        loadedMonthsRef.current.add(monthKey);
+        tasksCacheRef.current[monthKey] = normalized;
+        setTasksByDate(normalized);
         setError(null);
       })
       .catch((err) => {
@@ -420,7 +479,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [grid.start, grid.end, dateKeys]);
+  }, [grid.start, grid.end, dateKeys, monthKey]);
 
   useEffect(() => {
     let active = true;
@@ -655,6 +714,9 @@ export default function App() {
     });
 
     tasksByDateRef.current = next;
+    if (loadedMonthsRef.current.has(monthKey)) {
+      tasksCacheRef.current[monthKey] = next;
+    }
     setTasksByDate(next);
     persistReorder(updates);
     dragSnapshotRef.current = null;
@@ -790,25 +852,7 @@ export default function App() {
               </Button>
               <Button
                 type="button"
-                onClick={() => {
-                  const target = startOfMonth(today);
-                  if (
-                    target.getFullYear() === currentMonth.getFullYear() &&
-                    target.getMonth() === currentMonth.getMonth()
-                  ) {
-                    setMonthDirection('none');
-                  } else if (
-                    target.getFullYear() > currentMonth.getFullYear() ||
-                    (target.getFullYear() === currentMonth.getFullYear() &&
-                      target.getMonth() > currentMonth.getMonth())
-                  ) {
-                    setMonthDirection('next');
-                  } else {
-                    setMonthDirection('prev');
-                  }
-                  setCurrentMonth(target);
-                  focusDate(todayKey);
-                }}
+                onClick={goToToday}
                 $primary
               >
                 Today
@@ -877,25 +921,7 @@ export default function App() {
           </Button>
           <Button
             type="button"
-            onClick={() => {
-              const target = startOfMonth(today);
-              if (
-                target.getFullYear() === currentMonth.getFullYear() &&
-                target.getMonth() === currentMonth.getMonth()
-              ) {
-                setMonthDirection('none');
-              } else if (
-                target.getFullYear() > currentMonth.getFullYear() ||
-                (target.getFullYear() === currentMonth.getFullYear() &&
-                  target.getMonth() > currentMonth.getMonth())
-              ) {
-                setMonthDirection('next');
-              } else {
-                setMonthDirection('prev');
-              }
-              setCurrentMonth(target);
-              focusDate(todayKey);
-            }}
+            onClick={goToToday}
             $primary
           >
             Today
