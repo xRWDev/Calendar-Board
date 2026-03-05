@@ -435,6 +435,18 @@ export default function App() {
     return null;
   };
 
+  const findContainerInSnapshot = (
+    snapshot: Record<string, Task[]> | null,
+    id: string
+  ): string | null => {
+    if (!snapshot) return null;
+    if (snapshot[id]) return id;
+    for (const [date, tasks] of Object.entries(snapshot)) {
+      if (tasks.find((task) => task.id === id)) return date;
+    }
+    return null;
+  };
+
   const findTask = (id: string | null): Task | null => {
     if (!id) return null;
     for (const tasks of Object.values(tasksByDate)) {
@@ -591,19 +603,24 @@ export default function App() {
 
     const activeId = String(active.id);
     const overId = String(over.id);
-    const activeContainer = activeContainerId ?? findContainer(activeId);
+    const activeContainer =
+      findContainerInSnapshot(dragSnapshotRef.current, activeId) ??
+      activeContainerId ??
+      findContainer(activeId);
     const overContainer = findContainer(overId);
     if (!activeContainer || !overContainer) return;
 
     const affected = new Set([activeContainer, overContainer]);
     const updates: TaskReorderUpdate[] = [];
+    const movedAcrossDates = activeContainer !== overContainer;
 
     setTasksByDate((prev) => {
       const next = { ...prev };
       affected.forEach((date) => {
         const tasks = next[date] ?? [];
         next[date] = tasks.map((task, index) => {
-          if (task.order !== index || task.date !== date) {
+          const isActiveMoved = movedAcrossDates && task.id === activeId;
+          if (task.order !== index || task.date !== date || isActiveMoved) {
             updates.push({ id: task.id, date, order: index });
             return { ...task, date, order: index };
           }
