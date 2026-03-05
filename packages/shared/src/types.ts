@@ -2,6 +2,7 @@ export type DateKey = string; // YYYY-MM-DD
 
 export interface Task {
   id: string;
+  clientId?: string;
   title: string;
   notes?: string;
   date: DateKey;

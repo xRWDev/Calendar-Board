@@ -486,7 +486,7 @@ export const DayCell = React.memo(function DayCell({
         <Tasks onClick={handleTasksClick}>
           {visibleTasks.map((task) => (
             <TaskItem
-              key={task.id}
+              key={task.clientId ?? task.id}
               task={task}
               query={query}
               onUpdate={onUpdate}
@@ -552,7 +552,7 @@ export const DayCell = React.memo(function DayCell({
                 <OverflowList>
                   {overflowTasks.map((task) => (
                     <TaskItem
-                      key={task.id}
+                      key={task.clientId ?? task.id}
                       task={task}
                       query={query}
                       onUpdate={onUpdate}

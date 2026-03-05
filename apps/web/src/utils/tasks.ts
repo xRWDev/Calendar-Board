@@ -10,7 +10,7 @@ export function normalizeTasks(tasks: Task[], dateKeys: string[]): Record<string
     if (!map[task.date]) {
       map[task.date] = [];
     }
-    map[task.date].push(task);
+    map[task.date].push({ ...task, clientId: task.clientId ?? task.id });
   });
 
   Object.keys(map).forEach((key) => {

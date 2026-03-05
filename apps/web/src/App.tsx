@@ -635,6 +635,7 @@ export default function App() {
       const tasks = next[dateKey] ?? [];
       const tempTask: Task = {
         id: tempId,
+        clientId: tempId,
         title,
         notes: undefined,
         date: dateKey,
@@ -651,7 +652,7 @@ export default function App() {
       setTasksByDate((prev) => {
         const next = { ...prev };
         next[dateKey] = (next[dateKey] ?? []).map((task) =>
-          task.id === tempId ? created : task
+          task.id === tempId ? { ...created, clientId: task.clientId ?? tempId } : task
         );
         return next;
       });
@@ -662,6 +663,7 @@ export default function App() {
   };
 
   const handleUpdate = async (id: string, updates: { title?: string; notes?: string }) => {
+    const existing = findTask(id);
     const previous = tasksByDate;
     setTasksByDate((prev) => {
       const next = { ...prev };
@@ -676,7 +678,9 @@ export default function App() {
       setTasksByDate((prev) => {
         const next = { ...prev };
         next[updated.date] = (next[updated.date] ?? []).map((task) =>
-          task.id === updated.id ? updated : task
+          task.id === updated.id
+            ? { ...updated, clientId: existing?.clientId ?? updated.id }
+            : task
         );
         return next;
       });
