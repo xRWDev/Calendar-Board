@@ -454,21 +454,23 @@ export default function App() {
       setStoredToken(response.token);
       setAuthToken(response.token);
       setCurrentUsername(response.user?.username ?? null);
-      setCurrentUserColor(response.user?.color ?? null);
-      setCurrentUserRole(response.user?.role ?? null);
+      const role = response.user?.role ?? null;
+      const resolvedColor = role === 'admin' ? '#ff6122' : response.user?.color ?? null;
+      setCurrentUserColor(resolvedColor);
+      setCurrentUserRole(role);
       if (typeof window !== 'undefined') {
         if (response.user?.username) {
           window.localStorage.setItem('calendar-username', response.user.username);
         } else {
           window.localStorage.removeItem('calendar-username');
         }
-        if (response.user?.color) {
-          window.localStorage.setItem('calendar-user-color', response.user.color);
+        if (resolvedColor) {
+          window.localStorage.setItem('calendar-user-color', resolvedColor);
         } else {
           window.localStorage.removeItem('calendar-user-color');
         }
-        if (response.user?.role) {
-          window.localStorage.setItem('calendar-user-role', response.user.role);
+        if (role) {
+          window.localStorage.setItem('calendar-user-role', role);
         } else {
           window.localStorage.removeItem('calendar-user-role');
         }
@@ -486,6 +488,15 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('calendar-country', countryCode);
   }, [countryCode]);
+
+  useEffect(() => {
+    if (currentUserRole !== 'admin') return;
+    if (currentUserColor === '#ff6122') return;
+    setCurrentUserColor('#ff6122');
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('calendar-user-color', '#ff6122');
+    }
+  }, [currentUserRole, currentUserColor]);
 
   const normalizedQuery = search.trim().toLowerCase();
   const isFiltering = normalizedQuery.length > 0;
@@ -920,7 +931,7 @@ export default function App() {
         notes: undefined,
         date: dateKey,
         order: tasks.length,
-        color: currentUserColor ?? '#94a3b8',
+        color: currentUserRole === 'admin' ? '#ff6122' : currentUserColor ?? '#94a3b8',
         isAdmin: currentUserRole === 'admin',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

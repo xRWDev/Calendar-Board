@@ -344,6 +344,7 @@ export function TaskItem({
   onDelete,
   variant = 'default',
 }: TaskItemProps) {
+  const ADMIN_COLOR = '#ff6122';
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? '');
@@ -370,7 +371,7 @@ export function TaskItem({
     null
   );
   const editCloseTimerRef = useRef<number | null>(null);
-  const accent = task.color ?? '#94a3b8';
+  const accent = task.isAdmin ? ADMIN_COLOR : task.color ?? '#94a3b8';
   const [animate] = useState(() => {
     const createdAt = Date.parse(task.createdAt);
     if (Number.isNaN(createdAt)) return false;
