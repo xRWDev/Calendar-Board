@@ -16,8 +16,7 @@ Calendar task board with a custom monthly grid (no calendar libraries), inline t
 - Monorepo: pnpm workspaces
 
 ## Links
-- Live Demo: (add after deploy)
-- GitHub: https://github.com/xRWDev/Calendar-Board
+- Live Demo: https://calendar-board-web.vercel.app
 
 ## Prerequisites
 - Node.js 20+
